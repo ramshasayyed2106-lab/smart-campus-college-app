@@ -1,0 +1,16 @@
+{
+  "name": "Smart Campus",
+  "short_name": "Smart Campus",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#f4f7fb",
+  "theme_color": "#12395b",
+  "icons": [
+    {
+      "src": "/static/icons/smart-campus.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

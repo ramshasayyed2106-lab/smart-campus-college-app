@@ -1,0 +1,5 @@
+Initialize migrations after installing dependencies:
+
+flask --app app:create_app db init
+flask --app app:create_app db migrate -m "initial schema"
+flask --app app:create_app db upgrade
