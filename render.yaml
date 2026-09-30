@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: smart-campus
+    runtime: docker
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
