@@ -1,9 +1,0 @@
-{% extends "base.html" %}
-{% block content %}
-<section class="page-head"><h1>Student Documents</h1><p class="muted">Access documents uploaded by students in your department.</p></section>
-<section class="panel">
-{% for d, student in rows %}
-<div class="list-row"><div><strong>{{d.title}}</strong><br><span>{{student.full_name}} · {{student.user_id}}{% if student.roll_number %} · Roll {{student.roll_number}}{% endif %}</span><br><span class="muted">{{student.department or 'No department'}} · {{d.uploaded_at.strftime('%d %b %Y, %I:%M %p')}}</span></div><div class="actions document-actions"><a class="outline" href="{{ url_for('main.download_document', document_id=d.id) }}">View / Download</a></div></div>
-{% else %}<p class="muted">No student documents are available yet.</p>{% endfor %}
-</section>
-{% endblock %}
