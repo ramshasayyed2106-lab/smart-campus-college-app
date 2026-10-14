@@ -40,7 +40,7 @@ class OTPChallenge(db.Model):
 
 class AttendanceSession(db.Model):
     id=db.Column(db.Integer,primary_key=True); subject=db.Column(db.String(150),nullable=False); faculty_id=db.Column(db.Integer,db.ForeignKey('user.id'),nullable=False)
-    room=db.Column(db.String(100)); latitude=db.Column(db.Float,nullable=False); longitude=db.Column(db.Float,nullable=False); radius_m=db.Column(db.Float,nullable=False,default=20)
+    room=db.Column(db.String(100)); session_type=db.Column(db.String(20),nullable=False,default="THEORY"); latitude=db.Column(db.Float,nullable=False); longitude=db.Column(db.Float,nullable=False); radius_m=db.Column(db.Float,nullable=False,default=20)
     starts_at=db.Column(db.DateTime,default=datetime.utcnow,nullable=False); ends_at=db.Column(db.DateTime); active=db.Column(db.Boolean,default=True,nullable=False)
 class AttendanceRecord(db.Model):
     id=db.Column(db.Integer,primary_key=True); session_id=db.Column(db.Integer,db.ForeignKey('attendance_session.id'),nullable=False); student_id=db.Column(db.Integer,db.ForeignKey('user.id'),nullable=False)

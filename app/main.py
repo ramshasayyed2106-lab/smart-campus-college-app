@@ -1,6 +1,6 @@
 from datetime import datetime, date
 from pathlib import Path
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 import os
@@ -26,7 +26,10 @@ def index():
 @main_bp.get("/dashboard")
 @login_required
 def dashboard():
-    return render_template("dashboard.html", user=current_user)
+    attendance = None
+    if current_user.role == "STUDENT":
+        attendance = _attendance_percentages(current_user.id)
+    return render_template("dashboard.html", user=current_user, attendance=attendance)
 
 @main_bp.get("/student/attendance")
 @login_required
@@ -273,9 +276,9 @@ def faculty_attendance():
     if current_user.role not in ("FACULTY","ADMIN"): return redirect(url_for("main.dashboard"))
     if request.method=="POST":
         try:
-            subject=request.form["subject"].strip(); room=request.form.get("room","").strip(); lat=float(request.form["latitude"]); lon=float(request.form["longitude"]); radius=float(request.form["radius_m"])
-            if not subject or not room or radius<=0 or radius>100: raise ValueError()
-            db.session.add(AttendanceSession(subject=subject, faculty_id=current_user.id, room=room, latitude=lat, longitude=lon, radius_m=radius, active=True)); db.session.commit(); flash("Attendance session created. Students can now mark attendance.","success")
+            subject=request.form["subject"].strip(); room=request.form.get("room","").strip(); session_type=request.form.get("session_type","THEORY").upper(); lat=float(request.form["latitude"]); lon=float(request.form["longitude"]); radius=float(request.form["radius_m"])
+            if not subject or not room or session_type not in ("THEORY", "PRACTICAL") or radius<=0 or radius>100: raise ValueError()
+            db.session.add(AttendanceSession(subject=subject, faculty_id=current_user.id, room=room, session_type=session_type, latitude=lat, longitude=lon, radius_m=radius, active=True)); db.session.commit(); flash("Attendance session created. Students can now mark attendance.","success")
         except Exception: flash("Enter a valid subject, location and radius.","error")
         return redirect(url_for("main.faculty_attendance"))
     sessions=db.session.scalars(db.select(AttendanceSession).where(AttendanceSession.faculty_id==current_user.id).order_by(AttendanceSession.starts_at.desc())).all()
@@ -363,3 +366,72 @@ def faculty_records(session_id):
 @main_bp.get("/chatbot")
 @login_required
 def chatbot(): return render_template("chatbot.html")
+
+
+# Attendance percentages are calculated from the attendance sessions recorded in
+# the database. The denominator is the total sessions of each type in the system.
+def _attendance_percentages(student_id):
+    result = {}
+    for typ in ("THEORY", "PRACTICAL"):
+        total = db.session.scalar(db.select(db.func.count(AttendanceSession.id)).where(AttendanceSession.session_type == typ)) or 0
+        attended = db.session.scalar(db.select(db.func.count(AttendanceRecord.id)).join(AttendanceSession, AttendanceRecord.session_id == AttendanceSession.id).where(AttendanceRecord.student_id == student_id, AttendanceRecord.status == "PRESENT", AttendanceSession.session_type == typ)) or 0
+        result[typ.lower()] = round((attended / total) * 100, 2) if total else 0.0
+    total_sessions = db.session.scalar(db.select(db.func.count(AttendanceSession.id))) or 0
+    total_attended = db.session.scalar(db.select(db.func.count(AttendanceRecord.id)).where(AttendanceRecord.student_id == student_id, AttendanceRecord.status == "PRESENT")) or 0
+    result["overall"] = round((total_attended / total_sessions) * 100, 2) if total_sessions else 0.0
+    return result
+
+@main_bp.get("/student/subjects")
+@login_required
+def student_subjects():
+    if current_user.role != "STUDENT":
+        return redirect(url_for("main.dashboard"))
+    # Seeded subject catalogue from the syllabus example provided by the user.
+    # Add further course/semester lists here as official syllabi are supplied.
+    course_key = (current_user.course or "").strip().casefold().replace(" ", "").replace("-", "")
+    subjects = []
+    if current_user.semester == 5 and ("bbaca" in course_key or "bba-ca" in course_key or "bba" in course_key):
+        subjects = [
+            ("Java Programming", "THEORY"),
+            ("Python Programming", "THEORY"),
+            ("Computer Laboratory based on Java and Python Programming", "PRACTICAL"),
+            ("Essentials of Cloud Computing", "THEORY"),
+            ("Software Engineering", "THEORY"),
+            ("Entrepreneurship Essentials", "THEORY"),
+            ("Project based on Major Mandatory", "PRACTICAL"),
+        ]
+    return render_template("subjects.html", subjects=subjects, student=current_user)
+
+@main_bp.route("/parent", methods=["GET", "POST"])
+def parent_portal_login():
+    if request.method == "POST":
+        child_id = request.form.get("student_id", "").strip()
+        parent_phone = _phone(request.form.get("parent_phone"))
+        child = db.session.scalar(db.select(User).where(User.user_id == child_id, User.role == "STUDENT", User.parent_phone == parent_phone))
+        if not child:
+            flash("We couldn't match that student ID and parent mobile number. Check the details or contact the college.", "error")
+            return redirect(url_for("main.parent_portal_login"))
+        session.pop("parent_student_id", None)
+        session["parent_student_id"] = child.id
+        return redirect(url_for("main.parent_portal"))
+    return render_template("parent_login.html")
+
+@main_bp.get("/parent/portal")
+def parent_portal():
+    child_id = session.get("parent_student_id")
+    if not child_id:
+        return redirect(url_for("main.parent_portal_login"))
+    child = db.session.get(User, child_id)
+    if not child or child.role != "STUDENT":
+        session.pop("parent_student_id", None)
+        return redirect(url_for("main.parent_portal_login"))
+    fees = db.session.scalars(db.select(FeeRecord).where(FeeRecord.student_id == child.id).order_by(FeeRecord.due_date)).all()
+    timetable = db.session.scalars(db.select(TimetableEntry).where((TimetableEntry.department == child.department) | TimetableEntry.department.is_(None), (TimetableEntry.semester == child.semester) | TimetableEntry.semester.is_(None)).order_by(TimetableEntry.entry_date, TimetableEntry.start_time)).all()
+    notices = db.session.scalars(db.select(Notice).order_by(Notice.created_at.desc())).all()
+    attendance = _attendance_percentages(child.id)
+    return render_template("parent_portal.html", child=child, fees=fees, timetable=timetable, notices=notices, attendance=attendance)
+
+@main_bp.post("/parent/logout")
+def parent_portal_logout():
+    session.pop("parent_student_id", None)
+    return redirect(url_for("main.parent_portal_login"))

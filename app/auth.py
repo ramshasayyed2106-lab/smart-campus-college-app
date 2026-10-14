@@ -28,10 +28,13 @@ def register():
     if request.method=='GET':
         if role not in {Role.STUDENT.value,Role.FACULTY.value}:role=''
         return render_template('register.html',selected_role=role)
-    full=request.form.get('full_name','').strip(); login_id=request.form.get('login_id','').strip(); email=request.form.get('email','').strip().lower(); phone=_phone(request.form.get('phone')); dept=request.form.get('department','').strip(); course=request.form.get('course','').strip(); sem=request.form.get('semester','').strip(); roll=request.form.get('roll_number','').strip(); pw=request.form.get('password',''); cpw=request.form.get('confirm_password',''); photo=request.files.get('photo')
+    full=request.form.get('full_name','').strip(); login_id=request.form.get('login_id','').strip(); email=request.form.get('email','').strip().lower(); phone=_phone(request.form.get('phone')); parent_phone=_phone(request.form.get('parent_phone')); dept=request.form.get('department','').strip(); course=request.form.get('course','').strip(); sem=request.form.get('semester','').strip(); roll=request.form.get('roll_number','').strip(); pw=request.form.get('password',''); cpw=request.form.get('confirm_password',''); photo=request.files.get('photo')
     if role not in {Role.STUDENT.value,Role.FACULTY.value}: flash('Choose Student or Faculty.','error'); return redirect(url_for('main.index'))
-    if not all([full,login_id,email,phone,dept,pw,cpw,photo and photo.filename]) or (role=='STUDENT' and not all([course,sem,roll])): flash('All registration fields are compulsory, including photo.','error'); return redirect(url_for('auth.register',role=role))
-    if not re.fullmatch(r'\d{10}',phone): flash('Enter a valid 10-digit mobile number.','error'); return redirect(url_for('auth.register',role=role))
+    if not all([full,login_id,email,phone,dept,pw,cpw,photo and photo.filename]) or (role=='STUDENT' and not all([course,sem,roll,parent_phone])): flash('All registration fields are compulsory, including photo.','error'); return redirect(url_for('auth.register',role=role))
+    if not re.fullmatch(r'[6-9]\d{9}',phone): flash('Enter a valid Indian mobile number: 10 digits starting with 6, 7, 8 or 9.','error'); return redirect(url_for('auth.register',role=role))
+    if not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]{2,}', email): flash('Enter a valid email address, for example name@gmail.com.','error'); return redirect(url_for('auth.register',role=role))
+    if role=='STUDENT' and not re.fullmatch(r'[6-9]\d{9}',parent_phone): flash('Enter the parent’s valid Indian mobile number: 10 digits starting with 6, 7, 8 or 9.','error'); return redirect(url_for('auth.register',role=role))
+    if role=='STUDENT' and parent_phone==phone: flash('Parent mobile number must be different from the student mobile number.','error'); return redirect(url_for('auth.register',role=role))
     if len(pw)<8 or pw!=cpw: flash('Password must be at least 8 characters and both passwords must match.','error'); return redirect(url_for('auth.register',role=role))
     if db.session.scalar(db.select(User).where(User.user_id==login_id)): flash('This ID is already registered.','error'); return redirect(url_for('auth.register',role=role))
     if db.session.scalar(db.select(User).where(User.email==email)): flash('This email is already registered.','error'); return redirect(url_for('auth.register',role=role))
@@ -43,31 +46,14 @@ def register():
         except: flash('Semester must be a number.','error'); return redirect(url_for('auth.register',role=role))
     else: semester=None; course=None; roll=None
 
-    # Registration is authorized by the college directory. This is what lets the
-    # system reject fake/unissued IDs, emails and phone numbers without putting
-    # an OTP step on the registration page. The directory is maintained by
-    # trusted faculty/admin users.
-    q=db.select(AuthorizedRegistration).where(
-        AuthorizedRegistration.user_id==login_id,
-        AuthorizedRegistration.role==role,
-        AuthorizedRegistration.email==email,
-        AuthorizedRegistration.phone==phone,
-        AuthorizedRegistration.full_name.ilike(full),
-        AuthorizedRegistration.department.ilike(dept),
-        AuthorizedRegistration.active.is_(True)
-    )
-    if role=='STUDENT':
-        q=q.where(AuthorizedRegistration.roll_number==roll, AuthorizedRegistration.course.ilike(course), AuthorizedRegistration.semester==semester)
-    authorized=db.session.scalar(q)
-    if not authorized:
-        flash('Registration rejected: the College ID/Faculty ID, name, email, mobile number and academic details do not match an authorized college record. Contact the college office if your record is missing or incorrect.','error')
-        return redirect(url_for('auth.register',role=role))
+    # Registration validates field formats and unique identifiers. It does not claim
+    # to verify ownership of the email/phone without an OTP or college directory.
     ext=Path(photo.filename).suffix.lower()
     if ext not in {'.jpg','.jpeg','.png'}: flash('Photo must be JPG, JPEG or PNG.','error'); return redirect(url_for('auth.register',role=role))
     photo_dir=Path('instance')/'profile_photos'; photo_dir.mkdir(parents=True,exist_ok=True)
     filename=f'{__import__("secrets").token_hex(16)}{ext}'
     photo_path=photo_dir/filename; photo.save(photo_path)
-    user=User(user_id=login_id,role=role,full_name=full,email=email,phone=phone,department=dept,course=course,semester=semester,roll_number=roll)
+    user=User(user_id=login_id,role=role,full_name=full,email=email,phone=phone,parent_phone=(parent_phone if role=="STUDENT" else None),department=dept,course=course,semester=semester,roll_number=roll)
     user.set_password(pw); user.photo_path=str(Path('profile_photos')/filename)
     try:
         db.session.add(user); db.session.commit()

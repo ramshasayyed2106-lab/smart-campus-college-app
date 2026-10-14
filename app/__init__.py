@@ -8,7 +8,7 @@ from sqlalchemy import inspect, text
 load_dotenv()
 
 def ensure_legacy_schema():
-    additions={"attendance_session":{"room":"VARCHAR(100)"},"fee_record":{"last_paid_date":"DATE","installment_count":"INTEGER DEFAULT 0","installments_paid":"INTEGER DEFAULT 0","installment_amount":"FLOAT DEFAULT 0"},"complaint":{"category":"VARCHAR(100) DEFAULT 'OTHER'","department":"VARCHAR(120)","routed_to":"VARCHAR(100) DEFAULT 'HOD + PRINCIPAL'","hod_notified":"BOOLEAN DEFAULT FALSE","principal_notified":"BOOLEAN DEFAULT FALSE"}}
+    additions={"user":{"parent_phone":"VARCHAR(30)"},"attendance_session":{"room":"VARCHAR(100)","session_type":"VARCHAR(20) DEFAULT 'THEORY'"},"fee_record":{"last_paid_date":"DATE","installment_count":"INTEGER DEFAULT 0","installments_paid":"INTEGER DEFAULT 0","installment_amount":"FLOAT DEFAULT 0"},"complaint":{"category":"VARCHAR(100) DEFAULT 'OTHER'","department":"VARCHAR(120)","routed_to":"VARCHAR(100) DEFAULT 'HOD + PRINCIPAL'","hod_notified":"BOOLEAN DEFAULT FALSE","principal_notified":"BOOLEAN DEFAULT FALSE"}}
     inspector=inspect(db.engine)
     for table,cols in additions.items():
         if not inspector.has_table(table): continue
