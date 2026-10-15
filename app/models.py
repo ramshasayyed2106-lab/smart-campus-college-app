@@ -11,8 +11,11 @@ class User(UserMixin, db.Model):
     id=db.Column(db.Integer,primary_key=True); user_id=db.Column(db.String(50),unique=True,nullable=False,index=True)
     password_hash=db.Column(db.String(255),nullable=False); role=db.Column(db.String(20),nullable=False,default=Role.STUDENT.value)
     full_name=db.Column(db.String(150),nullable=False); email=db.Column(db.String(150),unique=True); phone=db.Column(db.String(30),unique=True,index=True)
-    department=db.Column(db.String(120));
-    parent_phone = db.Column(db.String(30), nullable=True) course=db.Column(db.String(120)); semester=db.Column(db.Integer); roll_number=db.Column(db.String(50),unique=True)
+    department = db.Column(db.String(120))
+    parent_phone = db.Column(db.String(30), nullable=True)
+    course = db.Column(db.String(120))
+    semester = db.Column(db.Integer)
+    roll_number = db.Column(db.String(50), unique=True)
     photo_path=db.Column(db.String(255)); face_encoding=db.Column(db.LargeBinary); created_at=db.Column(db.DateTime,default=datetime.utcnow,nullable=False)
     def set_password(self,password): self.password_hash=generate_password_hash(password)
     def check_password(self,password): return check_password_hash(self.password_hash,password)
@@ -51,7 +54,6 @@ class GeofenceAttempt(db.Model):
     attempted_at=db.Column(db.DateTime,default=datetime.utcnow,nullable=False); latitude=db.Column(db.Float); longitude=db.Column(db.Float); distance_m=db.Column(db.Float); gps_accuracy_m=db.Column(db.Float); reason=db.Column(db.String(255),nullable=False); notified=db.Column(db.Boolean,default=False,nullable=False)
 class TimetableEntry(db.Model):
     id=db.Column(db.Integer,primary_key=True); entry_type=db.Column(db.String(20),nullable=False); title=db.Column(db.String(150),nullable=False); subject=db.Column(db.String(150)); faculty_name=db.Column(db.String(150)); room=db.Column(db.String(100)); entry_date=db.Column(db.Date,nullable=False); start_time=db.Column(db.String(10)); end_time=db.Column(db.String(10)); semester=db.Column(db.Integer); department=db.Column(db.String(120))
-
 class FeeRecord(db.Model):
     id=db.Column(db.Integer,primary_key=True); student_id=db.Column(db.Integer,db.ForeignKey('user.id'),nullable=False); fee_type=db.Column(db.String(100),nullable=False); total_amount=db.Column(db.Float,nullable=False); paid_amount=db.Column(db.Float,default=0,nullable=False); due_date=db.Column(db.Date); status=db.Column(db.String(30),default='DUE',nullable=False); last_paid_date=db.Column(db.Date); installment_count=db.Column(db.Integer,default=0,nullable=False); installments_paid=db.Column(db.Integer,default=0,nullable=False); installment_amount=db.Column(db.Float,default=0,nullable=False)
     @property
