@@ -1,6 +1,6 @@
 from datetime import datetime, date
 from pathlib import Path
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, current_app
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 import os
@@ -110,11 +110,29 @@ def faculty_fees():
 @main_bp.get("/profile-photo/<int:user_id>")
 @login_required
 def profile_photo(user_id):
-    target=db.session.get(User,user_id)
-    if not target or not target.photo_path: return "Photo not found",404
-    if current_user.id!=target.id and current_user.role not in ("FACULTY","ADMIN"): return "Forbidden",403
-    p=Path(os.getcwd())/"instance"/target.photo_path
-    return send_file(p) if p.is_file() else ("Photo not found",404)
+    target = db.session.get(User, user_id)
+    if not target or not target.photo_path:
+        return "Photo not found", 404
+    if current_user.id != target.id and current_user.role not in ("FACULTY", "ADMIN"):
+        return "Forbidden", 403
+
+    # Resolve uploads from Flask's actual instance directory instead of relying
+    # on the process working directory, which can differ between local and Render.
+    stored_path = Path(target.photo_path)
+    if stored_path.is_absolute():
+        photo_file = stored_path
+    else:
+        # Support both legacy values such as "profile_photos/name.jpg" and
+        # older values that may already include the "instance/" prefix.
+        parts = stored_path.parts
+        if parts and parts[0] == "instance":
+            stored_path = Path(*parts[1:])
+        photo_file = Path(current_app.instance_path) / stored_path
+
+    if not photo_file.is_file():
+        current_app.logger.warning("Profile photo file missing for user id=%s", user_id)
+        return "Photo not found", 404
+    return send_file(photo_file)
 
 @main_bp.get("/student/id-card")
 @login_required
@@ -137,15 +155,25 @@ def documents_page():
             return redirect(url_for("main.documents_page"))
         safe_name = secure_filename(uploaded.filename) or f"document.{ext}"
         token = uuid4().hex
-        storage_dir = os.path.join(current_user.instance_path if hasattr(current_user, "instance_path") else os.path.join(os.getcwd(), "instance"), "documents", str(current_user.id))
+        storage_dir = os.path.join(current_app.instance_path, "documents", str(current_user.id))
         os.makedirs(storage_dir, exist_ok=True)
         storage_key = os.path.join("documents", str(current_user.id), f"{token}_{safe_name}")
-        full_path = os.path.join(current_user.instance_path if hasattr(current_user, "instance_path") else os.path.join(os.getcwd(), "instance"), storage_key)
+        full_path = os.path.join(current_app.instance_path, storage_key)
         uploaded.save(full_path)
-        # Keep the original filename as the document name; students do not need
-        # to enter a document title or type manually.
         document_name = safe_name
-        db.session.add(DigitalDocument(student_id=current_user.id, document_type=ext.upper(), title=document_name, storage_key=storage_key))
+        document_type = request.form.get("document_type", "").strip()
+        allowed_types = {
+            "Aadhaar Card", "College ID", "Marksheet", "Fee Receipt",
+            "Leaving Certificate", "Photo", "Other"
+        }
+        if document_type not in allowed_types:
+            try:
+                os.remove(full_path)
+            except OSError:
+                pass
+            flash("Please select a valid document type.", "error")
+            return redirect(url_for("main.documents_page"))
+        db.session.add(DigitalDocument(student_id=current_user.id, document_type=document_type, title=document_name, storage_key=storage_key))
         db.session.commit()
         flash("Document uploaded successfully.", "success")
         return redirect(url_for("main.documents_page"))
@@ -162,7 +190,7 @@ def delete_document(document_id):
         flash("Document not found.", "error")
         return redirect(url_for("main.documents_page"))
 
-    instance_dir = os.path.join(os.getcwd(), "instance")
+    instance_dir = current_app.instance_path
     path = os.path.join(instance_dir, document.storage_key)
     try:
         if os.path.isfile(path):
@@ -185,7 +213,11 @@ def faculty_documents_page():
     # route below applies the same access rule.
     stmt = db.select(DigitalDocument, User).join(User, DigitalDocument.student_id == User.id).where(User.role == "STUDENT")
     rows = db.session.execute(stmt.order_by(DigitalDocument.uploaded_at.desc())).all()
-    return render_template("faculty_documents.html", rows=rows)
+    grouped_rows = {}
+    for document, student in rows:
+        grouped_rows.setdefault(document.document_type or "Other", []).append((document, student))
+    document_types = sorted(grouped_rows.keys(), key=str.casefold)
+    return render_template("faculty_documents.html", grouped_rows=grouped_rows, document_types=document_types)
 
 @main_bp.get("/documents/<int:document_id>/download")
 @login_required
@@ -200,7 +232,7 @@ def download_document(document_id):
     )
     if not allowed:
         return "Forbidden", 403
-    instance_dir = os.path.join(os.getcwd(), "instance")
+    instance_dir = current_app.instance_path
     path = os.path.join(instance_dir, document.storage_key)
     if not os.path.isfile(path):
         return "Stored document not found", 404

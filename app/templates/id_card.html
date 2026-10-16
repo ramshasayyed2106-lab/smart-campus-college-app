@@ -1,1 +1,25 @@
-{% extends "base.html" %}{% block content %}<section class="page-head"><h1>Digital ID Card</h1></section><section class="id-card"><div class="id-photo-wrap"><img class="id-photo" src="{{url_for('main.profile_photo',user_id=user.id)}}" alt="{{user.full_name}} photo"></div><div class="logo-mark">SC</div><h2>SMART CAMPUS</h2><p>{{user.role}}</p><hr><h3>{{user.full_name}}</h3><p>ID: {{user.user_id}}</p><p>{% if user.role=='STUDENT' %}Roll No: {{user.roll_number}}<br>{{user.course}} · Semester {{user.semester}}<br>{% endif %}{{user.department}}<br>{{user.phone}}<br>{{user.email}}</p></section>{% endblock %}
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head">
+  <a class="outline" href="{{ url_for('main.dashboard') }}" aria-label="Back to dashboard">← Back to Dashboard</a>
+  <h1>Digital ID Card</h1>
+</section>
+<section class="id-card">
+  <div class="id-photo-wrap">
+    <img class="id-photo"
+         src="{{ url_for('main.profile_photo', user_id=user.id) }}"
+         alt="{{ user.full_name }} photo"
+         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+    <div class="id-photo-fallback" style="display:none;" aria-label="No profile photo available">
+      {{ user.full_name[:1]|upper }}
+    </div>
+  </div>
+  <div class="logo-mark">SC</div>
+  <h2>SMART CAMPUS</h2>
+  <p>{{ user.role }}</p>
+  <hr>
+  <h3>{{ user.full_name }}</h3>
+  <p>ID: {{ user.user_id }}</p>
+  <p>{% if user.role=='STUDENT' %}Roll No: {{ user.roll_number }}<br>{{ user.course }} · Semester {{ user.semester }}<br>{% endif %}{{ user.department }}<br>{{ user.phone }}<br>{{ user.email }}</p>
+</section>
+{% endblock %}
