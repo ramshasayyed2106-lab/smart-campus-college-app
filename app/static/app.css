@@ -75,3 +75,15 @@ button, input, select, textarea { min-height: 44px; }
   font-weight: 700;
   white-space: nowrap;
 }
+
+/* Keep back-to-dashboard links readable on light backgrounds. */
+.page-head > a.outline {
+  color: #000 !important;
+  background: #fff !important;
+  border: 1px solid #9aa9b7 !important;
+  text-decoration: none;
+}
+.page-head > a.outline:hover {
+  color: #000 !important;
+  background: #f1f4f7 !important;
+}
