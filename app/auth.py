@@ -9,6 +9,44 @@ from .models import User, Role, OTPChallenge, AuthorizedRegistration
 from .services.verification import create_challenge, verify_challenge
 
 auth_bp=Blueprint('auth',__name__)
+
+DEPARTMENT_OPTIONS = [
+    "Computer Science",
+    "Information Technology (IT)",
+    "Computer Applications (BCA / BBACA)",
+    "Commerce",
+    "Business Administration (BBA)",
+    "Arts",
+    "Science",
+    "Mathematics",
+    "Physics",
+    "Chemistry",
+    "English",
+    "Economics",
+    "Psychology",
+    "Management Studies",
+    "Library",
+    "Administration",
+    "Other",
+]
+
+COURSE_OPTIONS = [
+    "BBA(CA) / BBACA",
+    "BCA",
+    "B.Sc. Computer Science",
+    "B.Sc. Information Technology",
+    "B.Com.",
+    "BBA",
+    "B.A.",
+    "B.Sc.",
+    "M.Sc. Computer Science",
+    "M.Com.",
+    "M.A.",
+    "MBA",
+    "MCA",
+    "Other",
+]
+
 def _phone(v): return re.sub(r'\D','',v or '')
 @auth_bp.get('/login')
 def login():
@@ -27,9 +65,15 @@ def register():
     role=request.args.get('role','').upper() if request.method=='GET' else request.form.get('role','').upper().strip()
     if request.method=='GET':
         if role not in {Role.STUDENT.value,Role.FACULTY.value}:role=''
-        return render_template('register.html',selected_role=role)
+        return render_template('register.html',selected_role=role,departments=DEPARTMENT_OPTIONS,courses=COURSE_OPTIONS)
     full=request.form.get('full_name','').strip(); login_id=request.form.get('login_id','').strip(); email=request.form.get('email','').strip().lower(); phone=_phone(request.form.get('phone')); parent_phone=_phone(request.form.get('parent_phone')); dept=request.form.get('department','').strip(); course=request.form.get('course','').strip(); sem=request.form.get('semester','').strip(); roll=request.form.get('roll_number','').strip(); pw=request.form.get('password',''); cpw=request.form.get('confirm_password',''); photo=request.files.get('photo')
     if role not in {Role.STUDENT.value,Role.FACULTY.value}: flash('Choose Student or Faculty.','error'); return redirect(url_for('main.index'))
+    if dept not in DEPARTMENT_OPTIONS:
+        flash('Please select a department from the list.', 'error')
+        return redirect(url_for('auth.register', role=role))
+    if role == 'STUDENT' and course not in COURSE_OPTIONS:
+        flash('Please select a course from the list.', 'error')
+        return redirect(url_for('auth.register', role=role))
     if not all([full,login_id,email,phone,dept,pw,cpw,photo and photo.filename]) or (role=='STUDENT' and not all([course,sem,roll,parent_phone])): flash('All registration fields are compulsory, including photo.','error'); return redirect(url_for('auth.register',role=role))
     if not re.fullmatch(r'[6-9]\d{9}',phone): flash('Enter a valid Indian mobile number: 10 digits starting with 6, 7, 8 or 9.','error'); return redirect(url_for('auth.register',role=role))
     if not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]{2,}', email): flash('Enter a valid email address, for example name@gmail.com.','error'); return redirect(url_for('auth.register',role=role))
