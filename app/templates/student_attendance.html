@@ -1,1 +1,57 @@
-{% extends "base.html" %}{% block content %}<section class="page-head"><h1>Mark Attendance</h1><p class="muted">Select an active lecture. Your location must be inside the faculty-defined area and your live face must match your registered face.</p></section><section class="panel"><h2>Attendance Summary</h2><p id="attendance-summary">Loading attendance percentage…</p></section><div class="grid"><section class="card wide"><label>Active lecture<select id="session-select"><option value="">Select lecture</option>{% for s in sessions %}<option value="{{s.id}}">{{s.subject}} — {{s.starts_at.strftime('%d %b %Y, %I:%M %p')}} — radius {{s.radius_m|round|int}}m</option>{% endfor %}</select></label><div class="camera-grid"><div><video id="attendance-camera" autoplay playsinline></video><canvas id="attendance-canvas" hidden></canvas></div><div><button id="attendance-start-camera" class="secondary">Start Camera</button><button id="mark-attendance" class="primary">Mark Attendance</button><p id="attendance-status" class="status"></p></div></div></section></div>{% endblock %}
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head">
+  <h1>Attendance</h1>
+  <p class="muted">Mark attendance for an active lecture and review your saved attendance by subject.</p>
+</section>
+<section class="panel">
+  <h2>Attendance Summary</h2>
+  <p id="attendance-summary">Loading attendance percentage…</p>
+</section>
+<div class="grid">
+  <section class="card wide">
+    <h2>Mark Attendance</h2>
+    <label>Active lecture
+      <select id="session-select">
+        <option value="">Select lecture</option>
+        {% for s in sessions %}
+        <option value="{{s.id}}">{{s.subject}} — {{s.starts_at.strftime('%d %b %Y, %I:%M %p')}} — radius {{s.radius_m|round|int}}m</option>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="camera-grid">
+      <div><video id="attendance-camera" autoplay playsinline></video><canvas id="attendance-canvas" hidden></canvas></div>
+      <div><button id="attendance-start-camera" class="secondary">Start Camera</button><button id="mark-attendance" class="primary">Mark Attendance</button><p id="attendance-status" class="status"></p></div>
+    </div>
+  </section>
+</div>
+<section class="panel">
+  <h2>Subject-wise Attendance Details</h2>
+  {% if attendance_by_subject %}
+    {% for subject, entries in attendance_by_subject.items() %}
+      <h3>{{ subject }}</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Sr. No.</th><th>Date</th><th>Period</th><th>Status</th></tr></thead>
+        <tbody>
+        {% for lecture, record in entries %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ lecture.starts_at.strftime('%-m/%-d/%Y') if lecture.starts_at else '—' }}</td>
+            <td>1</td>
+            <td>
+              {% if record and record.status|upper == 'PRESENT' %}
+                <span class="badge" style="color:#238443;background:#e8f5e9">P</span> Present
+              {% else %}
+                <span class="badge" style="color:#b42318;background:#fdecea">A</span> Absent
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+    {% endfor %}
+  {% else %}
+    <p class="muted">No attendance sessions have been recorded yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

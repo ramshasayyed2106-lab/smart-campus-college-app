@@ -35,8 +35,22 @@ def dashboard():
 @login_required
 def student_attendance_page():
     if current_user.role != "STUDENT": return redirect(url_for("main.dashboard"))
-    sessions = db.session.scalars(db.select(AttendanceSession).where(AttendanceSession.active == True).order_by(AttendanceSession.starts_at.desc())).all()
-    return render_template("student_attendance.html", sessions=sessions)
+    sessions = db.session.scalars(db.select(AttendanceSession).order_by(AttendanceSession.starts_at.desc())).all()
+    records = db.session.scalars(db.select(AttendanceRecord).where(
+        AttendanceRecord.student_id == current_user.id
+    ).order_by(AttendanceRecord.marked_at.desc())).all()
+    record_by_session = {record.session_id: record for record in records}
+    attendance_by_subject = {}
+    for lecture in sessions:
+        attendance_by_subject.setdefault(lecture.subject, []).append(
+            (lecture, record_by_session.get(lecture.id))
+        )
+    active_sessions = [lecture for lecture in sessions if lecture.active]
+    return render_template(
+        "student_attendance.html",
+        sessions=active_sessions,
+        attendance_by_subject=attendance_by_subject,
+    )
 
 @main_bp.get("/student/face")
 @login_required
@@ -392,7 +406,12 @@ def faculty_records(session_id):
     session=db.session.get(AttendanceSession,session_id)
     if not session: return redirect(url_for("main.faculty_attendance"))
     records=db.session.execute(db.select(AttendanceRecord,User).join(User,AttendanceRecord.student_id==User.id).where(AttendanceRecord.session_id==session_id).order_by(User.roll_number)).all()
-    attempts=db.session.scalars(db.select(GeofenceAttempt).where(GeofenceAttempt.session_id==session_id).order_by(GeofenceAttempt.attempted_at.desc())).all()
+    attempts=db.session.execute(
+        db.select(GeofenceAttempt, User)
+        .join(User, GeofenceAttempt.student_id == User.id)
+        .where(GeofenceAttempt.session_id == session_id)
+        .order_by(GeofenceAttempt.attempted_at.desc())
+    ).all()
     return render_template("faculty_records.html", session=session, records=records, attempts=attempts)
 
 @main_bp.get("/chatbot")
